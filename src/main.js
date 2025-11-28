@@ -1,19 +1,23 @@
 // src/main.js
-import DriveSync from "./modules/driveSync.js";// O navegador resolve isso relativo ao arquivo main.js no CDN
+import DriveSync from "./modules/driveSync.js";
+import ChatCommands from "./modules/chatCommands.js"; // <--- NOVO IMPORT
 
 window.TChannel = {
     init() {
         console.log("[TChannel] Inicializando módulos...");
+        
+        // Inicia o player do Drive
         DriveSync.init();
+        
+        // Inicia os comandos de chat
+        ChatCommands.init();
     },
-    // Opcional: Expor o módulo para depuração no console
     modules: {
-        DriveSync
+        DriveSync,
+        ChatCommands // <--- Exposto para debug
     }
 };
 
-// Inicia quando o DOM estiver pronto (compatível com jQuery do CyTube)
 $(document).ready(() => {
     window.TChannel.init();
 });
-
