@@ -16,6 +16,7 @@ const commands = {
     // Comando: Limpar Chat Local
     clear: {
         description: "Limpa o seu historico de chat localmente.",
+        usage: "Limpa todas as mensagens da sua janela de chat.\nIsso afeta apenas voce, nao os outros usuarios.\n\nUso: .clear",
         run: (params, data) => {
             const buffer = document.querySelector("#messagebuffer");
             if (buffer) {
@@ -25,31 +26,36 @@ const commands = {
         }
     },
 
-    // Comando: Dados / Roll (Híbrido: RPG e Simples)
+    // Comando: Dados / Roll
     roll: {
-        description: "Rola dados. Uso: .roll 1d20+5 OU .roll <min> <max>",
+        description: "Rola dados (RPG ou Simples).",
+        usage: "Rola dados de RPG ou faz sorteios simples.\n\n" +
+               "Modo RPG:\n" +
+               ".roll 1d20 (Rola 1 dado de 20 lados)\n" +
+               ".roll 2d6+5 (2 dados de 6 lados + 5)\n" +
+               ".roll 1d20 + 1d4 (Soma dados diferentes)\n\n" +
+               "Modo Simples:\n" +
+               ".roll 100 (Sorteia entre 0 e 100)\n" +
+               ".roll 1 10 (Sorteia entre 1 e 10)",
         run: (params, data) => {
             const fullText = params.join("").toLowerCase();
 
-            // MODO 1: Notação de RPG (se tiver 'd' no texto, ex: 1d20)
+            // MODO 1: RPG (se tiver 'd')
             if (fullText.includes("d")) {
                 let total = 0;
-                let outputLog = [];
-                let error = false;
-
-                // Regex para capturar grupos: (Sinal)(Qtd)d(Faces) OU (Sinal)(Numero)
-                // Ex: 1d20, +5, -1d4
+                let details = []; 
+                
                 const regex = /([+-]?)(\d+)d(\d+)|([+-]?)(\d+)/g;
                 let match;
 
                 while ((match = regex.exec(fullText)) !== null) {
                     if (match[0] === "") continue;
 
-                    // CASO A: É um dado (ex: 1d20) - match[3] é as faces
+                    // Dado (ex: 1d20)
                     if (match[3]) {
                         const sign = match[1] === "-" ? -1 : 1;
-                        const count = parseInt(match[2]); // Qtd de dados
-                        const faces = parseInt(match[3]); // Lados
+                        const count = parseInt(match[2]);
+                        const faces = parseInt(match[3]);
 
                         if (count > 50) return sendLocalMessage("Erro: Muitos dados (max 50).");
                         if (faces > 1000) return sendLocalMessage("Erro: Lados demais (max 1000).");
@@ -65,57 +71,57 @@ const commands = {
 
                         total += (subTotal * sign);
                         
-                        // Formatação: +2d6([3,5])
-                        const signStr = sign === -1 ? "-" : "+";
-                        outputLog.push(`${signStr}${count}d${faces}([${rolls.join(",")}])`);
+                        const signStr = sign === -1 ? "- " : "+ ";
+                        const rollsStr = count === 1 ? rolls[0] : `[${rolls.join(", ")}]`;
+                        details.push(`${signStr}${count}d${faces}:${rollsStr}`);
                     } 
-                    // CASO B: É um modificador fixo (ex: +5) - match[5] é o valor
+                    // Modificador fixo (ex: +5)
                     else if (match[5]) {
                         const sign = match[4] === "-" ? -1 : 1;
                         const val = parseInt(match[5]);
                         total += (val * sign);
-                        outputLog.push(`${sign === -1 ? "-" : "+"}${val}`);
+                        
+                        const signStr = sign === -1 ? "- " : "+ ";
+                        details.push(`${signStr}${val}`);
                     }
                 }
 
-                // Monta a string final
-                let msgResult = outputLog.join(" ");
-                if (msgResult.startsWith("+")) msgResult = msgResult.substring(1); // Remove o + do inicio
+                let detailsText = details.join(" ");
+                if (detailsText.startsWith("+ ")) detailsText = detailsText.substring(2);
 
                 if (window.CLIENT.name === data.username) {
                     window.socket.emit("chatMsg", { 
-                        msg: `/me rolou: ${msgResult} = **${total}**` 
+                        msg: `/me 🎲 **${total}** ⇐ ${detailsText}` 
                     });
                 }
                 return;
             }
 
-            // MODO 2: Min/Max Simples (Legado)
+            // MODO 2: Simples
             let min = parseInt(params[0]);
             let max = parseInt(params[1]);
 
             if (isNaN(min)) min = 0;
             if (isNaN(max)) max = 100;
             
-            if (min > max) {
-                return sendLocalMessage("Erro: O minimo nao pode ser maior que o maximo.");
-            }
+            if (min > max) return sendLocalMessage("Erro: Min > Max.");
 
             const result = Math.floor(Math.random() * (max - min + 1)) + min;
             
             if (window.CLIENT.name === data.username) {
-                window.socket.emit("chatMsg", { msg: `/me rolou [${min}-${max}]: **${result}**` });
+                window.socket.emit("chatMsg", { msg: `/me 🎲 Sorteio [${min}-${max}]: **${result}**` });
             }
         }
     },
 
-    // Comando: Ask (Bola 8)
+    // Comando: Ask
     ask: {
-        description: "Responde sua pergunta com o destino. Uso: .ask <pergunta>",
+        description: "Responde sua pergunta com o destino.",
+        usage: "A lendaria Bola 8 Magica responde suas duvidas de Sim ou Nao.\n\n" +
+               "Uso: .ask <pergunta>\n" +
+               "Exemplo: .ask Devo pedir pizza hoje?",
         run: (params, data) => {
-            if (params.length === 0) {
-                return sendLocalMessage("Voce precisa fazer uma pergunta!");
-            }
+            if (params.length === 0) return sendLocalMessage("Voce precisa fazer uma pergunta!");
 
             const respostas = [
                 "Com certeza.", "E decididamente assim.", "Sem duvida.", 
@@ -142,20 +148,116 @@ const commands = {
     // Comando: Moeda
     moeda: {
         description: "Joga uma moeda (Cara ou Coroa).",
+        usage: "Joga uma moeda para decidir a sorte (50/50).\n\nUso: .moeda",
         run: (params, data) => {
             const lado = Math.random() > 0.5 ? "Cara" : "Coroa";
-            
             if (window.CLIENT.name === data.username) {
                 window.socket.emit("chatMsg", { msg: `/me jogou uma moeda e caiu: ${lado}` });
             }
         }
     },
 
-    // Comando: Ajuda
-    help: {
-        description: "Lista todos os comandos disponiveis.",
+    // Comando: Amor
+    amor: {
+        description: "Calcula a compatibilidade amorosa.",
+        usage: "Calcula a porcentagem de amor entre duas pessoas (ou coisas).\n" +
+               "O resultado e puramente aleatorio e para diversao.\n\n" +
+               "Uso: .amor <Nome 1> <Nome 2>\n" +
+               "Exemplo: .amor Romeu Julieta",
         run: (params, data) => {
+            if (params.length < 2) return sendLocalMessage("Uso: .amor <Pessoa 1> <Pessoa 2>");
+
+            const nomes = params.join(" ");
+            const porcentagem = Math.floor(Math.random() * 101);
+            
+            let msgFim = "";
+            if (porcentagem < 20) msgFim = "💔 Sem chance!";
+            else if (porcentagem < 50) msgFim = "🤔 Talvez apenas amigos.";
+            else if (porcentagem < 90) msgFim = "🔥 Ta esquentando!";
+            else msgFim = "💖 E o destino!";
+
+            if (window.CLIENT.name === data.username) {
+                window.socket.emit("chatMsg", { 
+                    msg: `/me 💘 Compatibilidade [${nomes}]: **${porcentagem}%** ${msgFim}` 
+                });
+            }
+        }
+    },
+
+    // Comando: Tapa
+    tapa: {
+        description: "Da um tapa virtual em alguem.",
+        usage: "Interacao de roleplay. Da um tapa em alguem usando um objeto aleatorio.\n\n" +
+               "Uso: .tapa <Usuario>\n" +
+               "Exemplo: .tapa @Admin",
+        run: (params, data) => {
+            if (params.length === 0) return sendLocalMessage("Quem voce quer tapear?");
+            
+            const alvo = params.join(" ");
+            const objetos = ["uma truta grande", "uma luva de pelica", "um teclado mecanico", "um chinelo havaiana", "um pe de cabra"];
+            const obj = objetos[Math.floor(Math.random() * objetos.length)];
+
+            if (window.CLIENT.name === data.username) {
+                window.socket.emit("chatMsg", { 
+                    msg: `/me deu um tapa em ${alvo} com ${obj}!` 
+                });
+            }
+        }
+    },
+
+    // Comando: Math (Calculadora)
+    math: {
+        description: "Calculadora simples (+ - * /).",
+        usage: "Realiza contas matematicas rapidas.\n" +
+               "Suporta soma (+), subtracao (-), multiplicacao (*) e divisao (/).\n\n" +
+               "Uso: .math <expressao>\n" +
+               "Exemplo: .math 10 * 5 + 2",
+        run: (params, data) => {
+            try {
+                const expressao = params.join("").replace(/[^0-9+\-*/().]/g, "");
+                if (!expressao) return sendLocalMessage("Digite uma conta valida.");
+
+                const resultado = new Function('return ' + expressao)();
+
+                if (window.CLIENT.name === data.username) {
+                    window.socket.emit("chatMsg", { 
+                        msg: `/me 🧮 Calculou: ${expressao} = **${resultado}**` 
+                    });
+                }
+            } catch (e) {
+                sendLocalMessage("Erro na conta. Use apenas numeros e + - * /");
+            }
+        }
+    },
+
+    // Comando: Ajuda (Atualizado)
+    help: {
+        description: "Mostra a lista de comandos ou ajuda especifica.",
+        usage: "Mostra a lista de todos os comandos.\n" +
+               "Para ver detalhes de um comando especifico, digite o nome dele.\n\n" +
+               "Uso: .help\n" +
+               "Uso: .help roll",
+        run: (params, data) => {
+            // Caso 1: Ajuda Específica (.help roll)
+            if (params.length > 0) {
+                // Remove o prefixo caso o usuário tenha digitado .help .roll
+                const cmdName = params[0].toLowerCase().replace(config.prefix, "");
+                const cmd = commands[cmdName];
+
+                if (cmd) {
+                    let msg = `=== Ajuda: ${config.prefix}${cmdName} ===\n`;
+                    msg += `${cmd.description}\n\n`;
+                    msg += `[Como Usar]\n${cmd.usage}`;
+                    sendLocalMessage(msg);
+                } else {
+                    sendLocalMessage(`Comando '${cmdName}' nao encontrado.`);
+                }
+                return;
+            }
+
+            // Caso 2: Lista Geral (.help)
             let msg = "--- Comandos Disponiveis ---\n";
+            msg += `Dica: Use ${config.prefix}help <comando> para detalhes.\n\n`;
             Object.keys(commands).forEach(cmd => {
                 msg += `${config.prefix}${cmd}: ${commands[cmd].description}\n`;
             });
@@ -200,7 +302,7 @@ function handleChatMsg(data) {
 }
 
 /** ---------------------------
- * Inicialização do Módulo
+ * Inicialização
  * -------------------------- */
 function init() {
     if (state.socket) return; 
