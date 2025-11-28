@@ -55,7 +55,6 @@ const commands = {
     },
     
     // Comando: Webm (Adaptado do repo original)
-    // Nota: Requer proxy CORS e API do 2ch.hk, pode ser instável.
     webm: {
         description: "Busca um webm aleatório de uma thread do 2ch.hk (Experimental).",
         run: async (params, data) => {
@@ -67,7 +66,6 @@ const commands = {
             try {
                 // Truque para pegar o JSON da thread
                 let threadUrl = params[0].replace(".html", ".json");
-                // Proxy CORS necessário para browsers modernos
                 const proxy = "https://cors-anywhere.herokuapp.com/"; 
                 
                 sendLocalMessage("Buscando vídeos na thread...");
@@ -76,7 +74,6 @@ const commands = {
                 const json = await response.json();
                 
                 const videos = [];
-                // Varre os posts procurando arquivos mp4 ou webm (tipos 6 e 10 no 2ch)
                 json.threads[0].posts.forEach(post => {
                     if (post.files) {
                         post.files.forEach(file => {
@@ -90,12 +87,11 @@ const commands = {
                 const randomVideo = videos[Math.floor(Math.random() * videos.length)];
                 const videoUrl = "https://2ch.pm" + randomVideo.path;
 
-                // Adiciona à playlist
                 window.socket.emit("queue", {
                     id: videoUrl,
                     title: randomVideo.fullname,
                     pos: "end",
-                    type: "fi", // File Import
+                    type: "fi",
                     temp: true
                 });
                 
@@ -119,23 +115,24 @@ function sendLocalMessage(msg) {
         username: "[Sistema]",
         meta: { addClass: "server-whisper", addClassToNameAndTimestamp: true },
         msg: msg,
-        time: new Date()
+        time: Date.now() // CORREÇÃO: Usar Date.now() para retornar um número (Timestamp), não um Objeto.
     });
+
+    // Rola o chat para baixo se necessário (comportamento padrão do CyTube)
+    if (window.SCROLLCHAT) {
+        window.scrollChat();
+    }
 }
 
 // Lida com a mensagem recebida do socket
 function handleChatMsg(data) {
-    // Ignora se não tiver mensagem ou não começar com o prefixo
     if (!data.msg || !data.msg.startsWith(config.prefix)) return;
 
-    // Limpa HTML entities básicos para evitar problemas no parsing
     const cleanMsg = data.msg.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
-    
     const args = cleanMsg.slice(config.prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
 
     if (commands[commandName]) {
-        // Executa o comando
         commands[commandName].run(args, data);
     }
 }
@@ -144,13 +141,12 @@ function handleChatMsg(data) {
  * Inicialização do Módulo
  * -------------------------- */
 function init() {
-    if (state.socket) return; // Já inicializado
+    if (state.socket) return; 
 
     console.log("[ChatCommands] Inicializando...");
     state.socket = window.socket;
     state.username = window.CLIENT.name;
 
-    // Ouve todas as mensagens do chat
     state.socket.on("chatMsg", handleChatMsg);
     
     sendLocalMessage(`Módulo de Comandos carregado. Digite <code>${config.prefix}help</code> para ver.`);
