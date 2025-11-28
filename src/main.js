@@ -1,5 +1,5 @@
 // src/main.js
-import DriveSync from "./driveSync.js"; // O navegador resolve isso relativo ao arquivo main.js no CDN
+import DriveSync from "./modules/driveSync.js";// O navegador resolve isso relativo ao arquivo main.js no CDN
 
 window.TChannel = {
     init() {
@@ -16,3 +16,4 @@ window.TChannel = {
 $(document).ready(() => {
     window.TChannel.init();
 });
+
