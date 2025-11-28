@@ -15,22 +15,25 @@ const state = {
 const commands = {
     // Comando: Limpar Chat Local
     clear: {
-        description: "Limpa o seu histórico de chat localmente.",
+        description: "Limpa o seu historico de chat localmente.",
         run: (params, data) => {
-            document.querySelector("#messagebuffer").innerHTML = "";
-            sendLocalMessage("O chat foi limpo.");
+            const buffer = document.querySelector("#messagebuffer");
+            if (buffer) {
+                buffer.innerHTML = "";
+                sendLocalMessage("O chat foi limpo.");
+            }
         }
     },
 
     // Comando: Dados / Roll
     roll: {
-        description: "Rola um número aleatório. Uso: .roll <min> <max>",
+        description: "Rola um numero aleatorio. Uso: .roll <min> <max>",
         run: (params, data) => {
             const min = parseInt(params[0]) || 0;
             const max = parseInt(params[1]) || 100;
             
             if (min > max) {
-                return sendLocalMessage("Erro: O mínimo não pode ser maior que o máximo.");
+                return sendLocalMessage("Erro: O minimo nao pode ser maior que o maximo.");
             }
 
             const result = Math.floor(Math.random() * (max - min + 1)) + min;
@@ -44,31 +47,27 @@ const commands = {
 
     // Comando: Ajuda
     help: {
-        description: "Lista todos os comandos disponíveis.",
+        description: "Lista todos os comandos disponiveis.",
         run: (params, data) => {
-            let msg = "<strong>Comandos Disponíveis:</strong><br>";
+            sendLocalMessage("--- Comandos Disponiveis ---");
             Object.keys(commands).forEach(cmd => {
-                msg += `<code>${config.prefix}${cmd}</code>: ${commands[cmd].description}<br>`;
+                sendLocalMessage(`${config.prefix}${cmd}: ${commands[cmd].description}`);
             });
-            sendLocalMessage(msg);
         }
     },
     
-    // Comando: Webm (Adaptado do repo original)
+    // Comando: Webm
     webm: {
-        description: "Busca um webm aleatório de uma thread do 2ch.hk (Experimental).",
+        description: "Busca um webm aleatorio do 2ch.hk (Experimental).",
         run: async (params, data) => {
             if (!params[0]) return sendLocalMessage("Uso: .webm <url_da_thread>");
-            
-            // Apenas o próprio usuário executa a busca para não floodar
             if (window.CLIENT.name !== data.username) return;
 
             try {
-                // Truque para pegar o JSON da thread
                 let threadUrl = params[0].replace(".html", ".json");
                 const proxy = "https://cors-anywhere.herokuapp.com/"; 
                 
-                sendLocalMessage("Buscando vídeos na thread...");
+                sendLocalMessage("Buscando videos...");
                 
                 const response = await fetch(proxy + threadUrl);
                 const json = await response.json();
@@ -82,7 +81,7 @@ const commands = {
                     }
                 });
 
-                if (videos.length === 0) return sendLocalMessage("Nenhum vídeo encontrado.");
+                if (videos.length === 0) return sendLocalMessage("Nenhum video encontrado.");
 
                 const randomVideo = videos[Math.floor(Math.random() * videos.length)];
                 const videoUrl = "https://2ch.pm" + randomVideo.path;
@@ -95,11 +94,11 @@ const commands = {
                     temp: true
                 });
                 
-                sendLocalMessage(`Vídeo encontrado e adicionado: ${randomVideo.fullname}`);
+                sendLocalMessage(`Adicionado: ${randomVideo.fullname}`);
 
             } catch (err) {
-                console.error(err);
-                sendLocalMessage("Erro ao buscar webm. Verifique o console (pode ser erro de CORS).");
+                console.error("[ChatCommands] Erro no webm:", err);
+                sendLocalMessage("Erro ao buscar webm. Verifique o console (F12).");
             }
         }
     }
@@ -111,16 +110,24 @@ const commands = {
 
 // Envia uma mensagem cinza (local) apenas para você
 function sendLocalMessage(msg) {
-    window.addChatMessage({
-        username: "[Sistema]",
-        meta: { addClass: "server-whisper", addClassToNameAndTimestamp: true },
-        msg: msg,
-        time: Date.now() // CORREÇÃO: Usar Date.now() para retornar um número (Timestamp), não um Objeto.
-    });
+    if (typeof window.addChatMessage !== "function") {
+        console.error("[ChatCommands] Erro: window.addChatMessage não existe!");
+        return;
+    }
 
-    // Rola o chat para baixo se necessário (comportamento padrão do CyTube)
-    if (window.SCROLLCHAT) {
-        window.scrollChat();
+    try {
+        window.addChatMessage({
+            username: "[Sistema]",
+            meta: { addClass: "server-whisper", addClassToNameAndTimestamp: true },
+            msg: msg,
+            time: Date.now() // CORREÇÃO CRÍTICA: Número (Timestamp)
+        });
+
+        if (window.SCROLLCHAT) {
+            window.scrollChat();
+        }
+    } catch (e) {
+        console.error("[ChatCommands] Erro ao enviar mensagem local:", e);
     }
 }
 
@@ -128,6 +135,7 @@ function sendLocalMessage(msg) {
 function handleChatMsg(data) {
     if (!data.msg || !data.msg.startsWith(config.prefix)) return;
 
+    // Limpeza básica
     const cleanMsg = data.msg.replace(/&lt;/g, "<").replace(/&gt;/g, ">");
     const args = cleanMsg.slice(config.prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
@@ -149,7 +157,10 @@ function init() {
 
     state.socket.on("chatMsg", handleChatMsg);
     
-    sendLocalMessage(`Módulo de Comandos carregado. Digite <code>${config.prefix}help</code> para ver.`);
+    // Pequeno delay para garantir que o chat carregou antes de mandar a msg de boas vindas
+    setTimeout(() => {
+        sendLocalMessage(`Módulo de Comandos carregado. Use ${config.prefix}help`);
+    }, 1000);
 }
 
 export default {
