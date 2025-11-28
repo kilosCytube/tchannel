@@ -25,10 +25,72 @@ const commands = {
         }
     },
 
-    // Comando: Dados / Roll
+    // Comando: Dados / Roll (Híbrido: RPG e Simples)
     roll: {
-        description: "Rola um numero aleatorio. Uso: .roll <min> <max>",
+        description: "Rola dados. Uso: .roll 1d20+5 OU .roll <min> <max>",
         run: (params, data) => {
+            const fullText = params.join("").toLowerCase();
+
+            // MODO 1: Notação de RPG (se tiver 'd' no texto, ex: 1d20)
+            if (fullText.includes("d")) {
+                let total = 0;
+                let outputLog = [];
+                let error = false;
+
+                // Regex para capturar grupos: (Sinal)(Qtd)d(Faces) OU (Sinal)(Numero)
+                // Ex: 1d20, +5, -1d4
+                const regex = /([+-]?)(\d+)d(\d+)|([+-]?)(\d+)/g;
+                let match;
+
+                while ((match = regex.exec(fullText)) !== null) {
+                    if (match[0] === "") continue;
+
+                    // CASO A: É um dado (ex: 1d20) - match[3] é as faces
+                    if (match[3]) {
+                        const sign = match[1] === "-" ? -1 : 1;
+                        const count = parseInt(match[2]); // Qtd de dados
+                        const faces = parseInt(match[3]); // Lados
+
+                        if (count > 50) return sendLocalMessage("Erro: Muitos dados (max 50).");
+                        if (faces > 1000) return sendLocalMessage("Erro: Lados demais (max 1000).");
+
+                        let subTotal = 0;
+                        let rolls = [];
+
+                        for (let i = 0; i < count; i++) {
+                            const val = Math.floor(Math.random() * faces) + 1;
+                            subTotal += val;
+                            rolls.push(val);
+                        }
+
+                        total += (subTotal * sign);
+                        
+                        // Formatação: +2d6([3,5])
+                        const signStr = sign === -1 ? "-" : "+";
+                        outputLog.push(`${signStr}${count}d${faces}([${rolls.join(",")}])`);
+                    } 
+                    // CASO B: É um modificador fixo (ex: +5) - match[5] é o valor
+                    else if (match[5]) {
+                        const sign = match[4] === "-" ? -1 : 1;
+                        const val = parseInt(match[5]);
+                        total += (val * sign);
+                        outputLog.push(`${sign === -1 ? "-" : "+"}${val}`);
+                    }
+                }
+
+                // Monta a string final
+                let msgResult = outputLog.join(" ");
+                if (msgResult.startsWith("+")) msgResult = msgResult.substring(1); // Remove o + do inicio
+
+                if (window.CLIENT.name === data.username) {
+                    window.socket.emit("chatMsg", { 
+                        msg: `/me rolou: ${msgResult} = **${total}**` 
+                    });
+                }
+                return;
+            }
+
+            // MODO 2: Min/Max Simples (Legado)
             let min = parseInt(params[0]);
             let max = parseInt(params[1]);
 
@@ -41,14 +103,13 @@ const commands = {
 
             const result = Math.floor(Math.random() * (max - min + 1)) + min;
             
-            // Envia para todos verem usando /me
             if (window.CLIENT.name === data.username) {
-                window.socket.emit("chatMsg", { msg: `/me jogou os dados [${min}-${max}]: ${result}` });
+                window.socket.emit("chatMsg", { msg: `/me rolou [${min}-${max}]: **${result}**` });
             }
         }
     },
 
-    // NOVO: Comando Ask (Bola 8)
+    // Comando: Ask (Bola 8)
     ask: {
         description: "Responde sua pergunta com o destino. Uso: .ask <pergunta>",
         run: (params, data) => {
@@ -72,14 +133,13 @@ const commands = {
             const resposta = respostas[Math.floor(Math.random() * respostas.length)];
 
             if (window.CLIENT.name === data.username) {
-                // Junta a pergunta de volta para mostrar contexto
                 const pergunta = params.join(" "); 
                 window.socket.emit("chatMsg", { msg: `/me 🎱 para "${pergunta}": ${resposta}` });
             }
         }
     },
 
-    // NOVO: Comando Moeda
+    // Comando: Moeda
     moeda: {
         description: "Joga uma moeda (Cara ou Coroa).",
         run: (params, data) => {
@@ -108,7 +168,6 @@ const commands = {
  * Funções Auxiliares
  * -------------------------- */
 
-// Envia uma mensagem cinza (local) apenas para você
 function sendLocalMessage(msg) {
     if (typeof window.addChatMessage !== "function") return;
 
@@ -128,7 +187,6 @@ function sendLocalMessage(msg) {
     }
 }
 
-// Lida com a mensagem recebida do socket
 function handleChatMsg(data) {
     if (!data.msg || !data.msg.startsWith(config.prefix)) return;
 
@@ -153,7 +211,6 @@ function init() {
 
     state.socket.on("chatMsg", handleChatMsg);
     
-    // Pequeno delay para garantir que o chat carregou
     setTimeout(() => {
         sendLocalMessage(`Modulo de Comandos carregado. Use ${config.prefix}help`);
     }, 1000);
