@@ -44,20 +44,12 @@ function md5(inputString) {
     return rh(a)+rh(b)+rh(c)+rh(d);
 }
 
-// Gera o Hash Numérico de 6 Dígitos (000000 - 999999)
+// Gera o Hash Numérico de 6 Dígitos
 function generateHash(username, message, timestamp) {
     const rawString = `${username.trim()}${message.trim()}${timestamp}`;
-    
-    // 1. Pega os primeiros 8 caracteres do hash MD5 (que é Hexadecimal)
     const hex = md5(rawString).substring(0, 8);
-    
-    // 2. Converte de Hex para Inteiro
     const decimal = parseInt(hex, 16);
-    
-    // 3. Pega o resto da divisão por 1 milhão para garantir 6 dígitos ou menos
     const sixDigits = decimal % 1000000;
-    
-    // 4. Preenche com zeros à esquerda se necessário (ex: 123 -> 000123)
     return sixDigits.toString().padStart(6, '0');
 }
 
@@ -78,8 +70,11 @@ function init() {
     const observer = new MutationObserver((mutations) => {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
-                if (node.nodeType !== 1) continue; 
-                if (!node.classList.contains('chat-msg-')) continue;
+                if (node.nodeType !== 1) continue;
+                
+                // CORREÇÃO: Usar 'includes' no className em vez de 'classList.contains'
+                // para pegar "chat-msg-Usuario"
+                if (!node.className || !node.className.includes('chat-msg-')) continue;
                 if (node.dataset.msgId) continue; 
 
                 try {
@@ -94,14 +89,12 @@ function init() {
                     const timeSpan = node.querySelector('.timestamp');
                     const timeStr = timeSpan ? timeSpan.innerText : getTimeString(Date.now());
 
-                    // Gera o ID numérico
                     const msgId = generateHash(username, msgContent, timeStr);
 
-                    // Atribui ao HTML
                     node.setAttribute('data-msg-id', msgId);
                     
-                    // Opcional: Adicionar um título para ver o ID ao passar o mouse
-                    // node.title = `ID: #${msgId}`;
+                    // Adicionei um log para você confirmar no console que gerou
+                    // console.log(`[ChatId] ID gerado para ${username}: ${msgId}`);
 
                 } catch (e) {
                     console.error("[ChatId] Falha ao gerar ID:", e);
