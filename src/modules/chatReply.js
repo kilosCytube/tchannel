@@ -1,21 +1,26 @@
 // src/modules/chatReply.js
 
-// 1. CSS Corrigido e Injetado
-// Usamos 'div[class*="chat-msg-"]:hover' para pegar qualquer mensagem de usuário
 const styles = `
-/* Botão de Reply (Seta) */
+/* Garante que a mensagem seja a referência para o botão absoluto */
+div[class*="chat-msg-"] {
+    position: relative !important;
+}
+
+/* Botão de Reply (Posicionamento Absoluto) */
 .reply-btn {
-    float: right;
-    margin-left: 10px;
+    position: absolute;
+    top: 2px;      /* Distância do topo */
+    right: 5px;    /* Distância da direita (fixa, independente da scrollbar) */
     cursor: pointer;
     font-size: 1.1em;
     color: #888;
-    opacity: 0; /* Invisível por padrão */
+    opacity: 0;
     transition: opacity 0.2s, color 0.2s;
     user-select: none;
+    z-index: 10;   /* Garante que fique acima de tudo */
 }
 
-/* O SEGREDO: Mostra o botão quando o mouse está EM QUALQUER LUGAR da mensagem */
+/* Mostra ao passar o mouse na mensagem */
 div[class*="chat-msg-"]:hover .reply-btn {
     opacity: 1;
 }
@@ -23,11 +28,13 @@ div[class*="chat-msg-"]:hover .reply-btn {
 .reply-btn:hover {
     color: #ffcc00;
     opacity: 1 !important;
+    text-shadow: 0 0 3px rgba(0,0,0,0.5);
 }
 
-/* Caixa de Resposta (Estilo Bokitube) */
+/* Caixa de Resposta */
 .reply-box {
-    clear: both; /* Evita conflito com o float */
+    /* clear: both não é mais necessário com absolute, mas mal não faz */
+    clear: both;
     position: relative;
     display: flex;
     flex-direction: column;
@@ -37,7 +44,7 @@ div[class*="chat-msg-"]:hover .reply-btn {
     padding: 4px 8px;
     margin: 4px 0 6px 0;
     width: fit-content;
-    max-width: 95%;
+    max-width: 90%; /* Deixa espaço para o botão não sobrepor texto longo */
     font-size: 0.85em;
     cursor: pointer;
     transition: background-color 0.2s;
@@ -87,7 +94,6 @@ function createReplyHeader(targetId) {
     let text = "Mensagem antiga ou apagada";
 
     if (targetMsg) {
-        // Tenta pegar nome
         const userSpan = targetMsg.querySelector('.username');
         if (userSpan) username = userSpan.innerText.replace(/:$/, ''); 
         else {
@@ -96,7 +102,6 @@ function createReplyHeader(targetId) {
             if (userClass) username = userClass.replace('chat-msg-', '');
         }
 
-        // Tenta pegar texto (limpando lixo)
         const clone = targetMsg.cloneNode(true);
         const toRemove = clone.querySelectorAll('.timestamp, .username, .reply-btn, .reply-box');
         toRemove.forEach(el => el.remove());
@@ -112,7 +117,7 @@ function createReplyHeader(targetId) {
 }
 
 function init() {
-    console.log("[ChatReply] Inicializando (CSS Corrigido)...");
+    console.log("[ChatReply] Inicializando (Posicionamento Absoluto)...");
     injectStyles();
 
     window.replyToMessage = replyToId;
@@ -127,10 +132,9 @@ function init() {
                 if (node.nodeType !== 1) continue;
                 if (!node.className || !node.className.includes('chat-msg-')) continue;
 
-                // Filtro de Segurança (Não adiciona em msg de sistema)
                 if (node.querySelector('.server-whisper') || node.classList.contains('server-msg-reconnect')) continue;
 
-                // 1. Inserir Botão
+                // 1. Inserir Botão (Agora com Append, pois é absoluto)
                 if (!node.querySelector('.reply-btn')) {
                     const btn = document.createElement('span');
                     btn.className = 'reply-btn';
@@ -140,16 +144,15 @@ function init() {
                         const id = node.getAttribute('data-msg-id');
                         if (id) replyToId(id);
                         else if (window.generateMsgId) {
-                            // Fallback
                             const timestamp = node.querySelector('.timestamp')?.innerText || "";
                             const newId = window.generateMsgId(node.className.split('-')[2], node.innerText, timestamp);
                             replyToId(newId);
                         }
                     };
                     
-                    // IMPORTANTE: Prepend insere no início da div.
-                    // Como tem float: right, ele vai para a direita sem quebrar o layout.
-                    node.prepend(btn);
+                    // Com position: absolute, tanto faz ser append ou prepend, 
+                    // mas append no final garante que fique "sobre" o texto se houver colisão
+                    node.appendChild(btn);
                 }
 
                 // 2. Renderizar Caixa de Resposta
