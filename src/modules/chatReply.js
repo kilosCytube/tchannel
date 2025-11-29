@@ -1,5 +1,65 @@
 // src/modules/chatReply.js
 
+// 1. CSS Corrigido e Injetado
+// Usamos 'div[class*="chat-msg-"]:hover' para pegar qualquer mensagem de usuário
+const styles = `
+/* Botão de Reply (Seta) */
+.reply-btn {
+    float: right;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 1.1em;
+    color: #888;
+    opacity: 0; /* Invisível por padrão */
+    transition: opacity 0.2s, color 0.2s;
+    user-select: none;
+}
+
+/* O SEGREDO: Mostra o botão quando o mouse está EM QUALQUER LUGAR da mensagem */
+div[class*="chat-msg-"]:hover .reply-btn {
+    opacity: 1;
+}
+
+.reply-btn:hover {
+    color: #ffcc00;
+    opacity: 1 !important;
+}
+
+/* Caixa de Resposta (Estilo Bokitube) */
+.reply-box {
+    clear: both; /* Evita conflito com o float */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(60, 60, 60, 0.4);
+    border-left: 4px solid #627b83;
+    border-radius: 4px;
+    padding: 4px 8px;
+    margin: 4px 0 6px 0;
+    width: fit-content;
+    max-width: 95%;
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.reply-box:hover { background-color: rgba(80, 80, 80, 0.5); border-left-color: #8aaeb8; }
+.reply-header { font-weight: bold; color: #aaa; font-size: 0.9em; margin-bottom: 2px; }
+.reply-msg { color: #ddd; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Animação */
+.highlight-anim { animation: reply-flash 1.5s ease-out; }
+@keyframes reply-flash { 0% { background-color: rgba(255, 255, 0, 0.3); } 100% { background-color: transparent; } }
+`;
+
+function injectStyles() {
+    if (!document.getElementById('chat-reply-css')) {
+        const styleSheet = document.createElement("style");
+        styleSheet.id = 'chat-reply-css';
+        styleSheet.innerText = styles;
+        document.head.appendChild(styleSheet);
+    }
+}
+
 function replyToId(id) {
     const chatline = document.getElementById("chatline");
     if (!chatline) return;
@@ -27,6 +87,7 @@ function createReplyHeader(targetId) {
     let text = "Mensagem antiga ou apagada";
 
     if (targetMsg) {
+        // Tenta pegar nome
         const userSpan = targetMsg.querySelector('.username');
         if (userSpan) username = userSpan.innerText.replace(/:$/, ''); 
         else {
@@ -35,6 +96,7 @@ function createReplyHeader(targetId) {
             if (userClass) username = userClass.replace('chat-msg-', '');
         }
 
+        // Tenta pegar texto (limpando lixo)
         const clone = targetMsg.cloneNode(true);
         const toRemove = clone.querySelectorAll('.timestamp, .username, .reply-btn, .reply-box');
         toRemove.forEach(el => el.remove());
@@ -50,7 +112,8 @@ function createReplyHeader(targetId) {
 }
 
 function init() {
-    console.log("[ChatReply] Inicializando sistema de respostas (v4)...");
+    console.log("[ChatReply] Inicializando (CSS Corrigido)...");
+    injectStyles();
 
     window.replyToMessage = replyToId;
     window.scrollToMessage = scrollToMessage;
@@ -64,14 +127,10 @@ function init() {
                 if (node.nodeType !== 1) continue;
                 if (!node.className || !node.className.includes('chat-msg-')) continue;
 
-                // --- FILTRO DE SEGURANÇA ---
-                // Ignora mensagens do sistema (server whisper)
-                if (node.querySelector('.server-whisper')) continue;
-                // Ignora mensagens de aviso/erro do sistema
-                if (node.classList.contains('server-msg-reconnect')) continue;
-                // ---------------------------
+                // Filtro de Segurança (Não adiciona em msg de sistema)
+                if (node.querySelector('.server-whisper') || node.classList.contains('server-msg-reconnect')) continue;
 
-                // 1. Botão de Reply (Canto Direito)
+                // 1. Inserir Botão
                 if (!node.querySelector('.reply-btn')) {
                     const btn = document.createElement('span');
                     btn.className = 'reply-btn';
@@ -81,31 +140,25 @@ function init() {
                         const id = node.getAttribute('data-msg-id');
                         if (id) replyToId(id);
                         else if (window.generateMsgId) {
-                            // Tenta reconstruir o ID se necessário
+                            // Fallback
                             const timestamp = node.querySelector('.timestamp')?.innerText || "";
-                            const newId = window.generateMsgId(
-                                node.className.split('-')[2], 
-                                node.innerText, 
-                                timestamp
-                            );
+                            const newId = window.generateMsgId(node.className.split('-')[2], node.innerText, timestamp);
                             replyToId(newId);
                         }
                     };
                     
-                    // Prepend insere como primeiro filho. 
-                    // Com float: right no CSS, ele vai para o canto direito superior.
+                    // IMPORTANTE: Prepend insere no início da div.
+                    // Como tem float: right, ele vai para a direita sem quebrar o layout.
                     node.prepend(btn);
                 }
 
-                // 2. Renderizar Caixa de Resposta (Lógica Mantida)
+                // 2. Renderizar Caixa de Resposta
                 const allSpans = node.querySelectorAll('span');
                 let found = false;
 
                 for (let span of allSpans) {
                     if (found) break;
-                    if (span.classList.contains('timestamp') || 
-                        span.classList.contains('username') ||
-                        span.classList.contains('reply-btn')) continue;
+                    if (span.classList.contains('timestamp') || span.classList.contains('username') || span.classList.contains('reply-btn')) continue;
 
                     const text = span.innerHTML;
                     const match = text.match(/^\s*\.reply\s+(\d+)/i);
