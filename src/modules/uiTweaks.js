@@ -3,9 +3,11 @@
 function makeChatMultiline() {
     try {
         var oldChatline = $("#chatline");
+        // Verifica se já não é textarea para evitar duplicidade
         if (oldChatline.length > 0 && oldChatline[0].tagName !== "TEXTAREA") {
             var newChatline = $("<textarea/>");
             
+            // Copia atributos essenciais
             newChatline.attr({
                 'id': oldChatline.attr('id'),
                 'class': oldChatline.attr('class'),
@@ -17,6 +19,7 @@ function makeChatMultiline() {
 
             oldChatline.replaceWith(newChatline);
 
+            // Auto-resize
             newChatline.on('input', function() {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
@@ -44,35 +47,37 @@ function makeChatMultiline() {
                     function sendNextLine() {
                         var msg = linesToSend.shift();
                         if (typeof msg === 'undefined') return;
-                        if (msg.trim() === "") { sendNextLine(); return; }
+                        
+                        if (msg.trim() === "") {
+                            sendNextLine();
+                            return;
+                        }
 
-                        // --- LÓGICA DE ADMIN / MOD (O que faltava) ---
+                        // --- LÓGICA DO /admn (NOVO) ---
                         var meta = {};
                         
-                        // Admin Hat (/a automático)
-                        if (window.USEROPTS.adminhat && window.CLIENT.rank >= 255) {
-                            msg = "/a " + msg;
+                        if (msg.startsWith("/admn ")) {
+                            // Remove o comando "/admn " do início (6 caracteres)
+                            msg = msg.substring(6); 
+                            
+                            // Adiciona a classe CSS personalizada
+                            meta.addClass = "tchannel-admin-msg";
+                            
+                            // (Opcional) Aplica o estilo também ao nome e hora
+                            meta.addClassToNameAndTimestamp = true; 
                         }
-                        // Mod Flair (Estrelinha)
-                        else if (window.USEROPTS.modhat && window.CLIENT.rank >= window.Rank.Moderator) {
-                            meta.modflair = window.CLIENT.rank;
-                        }
-
-                        // Mensagem de Mod (/m)
-                        if (window.CLIENT.rank >= 2 && msg.indexOf("/m ") === 0) {
-                            meta.modflair = window.CLIENT.rank;
-                            msg = msg.substring(3);
-                        }
-                        // ----------------------------------------------
+                        // ------------------------------
 
                         window.socket.emit("chatMsg", { msg: msg, meta: meta });
                         
-                        if (linesToSend.length > 0) setTimeout(sendNextLine, 150); 
+                        if (linesToSend.length > 0) {
+                            setTimeout(sendNextLine, 150); 
+                        }
                     }
                     
                     sendNextLine();
                 }
-                // [TAB] Autocompletar Nomes (O que faltava)
+                // [TAB] Autocompletar
                 else if (ev.keyCode === 9) {
                     try { 
                         if (window.chatTabComplete) window.chatTabComplete(ev.target); 
@@ -80,7 +85,7 @@ function makeChatMultiline() {
                     ev.preventDefault();
                     return false;
                 }
-                // [SETA CIMA] Histórico Anterior
+                // [SETAS] Histórico
                 else if (ev.keyCode === 38 && !ev.shiftKey) {
                     if (window.CHATHIST && window.CHATHISTIDX > 0) {
                         ev.preventDefault();
@@ -88,7 +93,6 @@ function makeChatMultiline() {
                         $(this).val(window.CHATHIST[window.CHATHISTIDX]);
                     }
                 }
-                // [SETA BAIXO] Histórico Próximo
                 else if (ev.keyCode === 40 && !ev.shiftKey) {
                     if (window.CHATHIST && window.CHATHISTIDX < window.CHATHIST.length - 1) {
                         ev.preventDefault();
@@ -101,7 +105,7 @@ function makeChatMultiline() {
                 }
             });
             
-            console.log("[UITweaks] Chat Multilinha + Admin Tools ativados.");
+            console.log("[UITweaks] Chat Multilinha + Comando /admn ativados.");
         }
     } catch (e) {
         console.error("[UITweaks] Erro:", e);
