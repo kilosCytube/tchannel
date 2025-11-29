@@ -4,48 +4,53 @@ function replyToId(id) {
     const chatline = document.getElementById("chatline");
     if (!chatline) return;
 
-    // Remove qualquer comando .reply anterior para não acumular
-    // Regex: Começa com .reply, espaços, ID (não-espaço), espaços
+    // Limpa reply anterior se houver
     let currentText = chatline.value.replace(/^\.reply\s+\S+\s*/, "");
     
-    // Adiciona o novo formato no início: .reply <ID> <Texto>
+    // Adiciona o comando no início
     chatline.value = `.reply ${id} ${currentText}`;
     chatline.focus();
 }
 
 function scrollToMessage(id) {
-    let target = document.querySelector(`[data-msg-id="${id}"]`);
-    
+    const target = document.querySelector(`[data-msg-id="${id}"]`);
     if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
-        target.style.transition = "background-color 0.3s";
+        
+        // Efeito de destaque
+        target.style.transition = "background-color 0.5s";
         const originalBg = target.style.backgroundColor;
-        target.style.backgroundColor = "rgba(255, 255, 0, 0.2)"; 
+        target.style.backgroundColor = "rgba(255, 255, 0, 0.15)"; // Marca-texto suave
         setTimeout(() => {
             target.style.backgroundColor = originalBg;
-        }, 1000);
+        }, 1500);
     } else {
-        console.warn("[ChatReply] Mensagem não encontrada no buffer.");
+        console.warn("[ChatReply] Mensagem original não encontrada no buffer.");
     }
 }
 
 function createReplyHeader(targetId) {
+    // Busca a mensagem original pelo ID
     const targetMsg = document.querySelector(`[data-msg-id="${targetId}"]`);
     
     let username = "Desconhecido";
     let text = "Mensagem antiga ou apagada";
 
     if (targetMsg) {
+        // Extrai Username
         const classList = targetMsg.className.split(' ');
         const userClass = classList.find(c => c.startsWith('chat-msg-'));
         if (userClass) username = userClass.replace('chat-msg-', '');
 
+        // Extrai Texto (remove timestamp e username da busca)
         const textSpan = targetMsg.querySelector('span:not(.timestamp):not(.username)');
         if (textSpan) text = textSpan.innerText;
         
-        if (text.length > 50) text = text.substring(0, 50) + "...";
+        // Trunca texto longo
+        if (text.length > 60) text = text.substring(0, 60) + "...";
     }
 
+    // Retorna o HTML do card de resposta
     return `<div class="reply-preview" onclick="window.scrollToMessage('${targetId}')">
                 <span class="reply-user">↩ ${username}:</span> 
                 <span class="reply-text">${text}</span>
@@ -55,6 +60,7 @@ function createReplyHeader(targetId) {
 function init() {
     console.log("[ChatReply] Inicializando sistema de respostas (.reply)...");
 
+    // Expõe funções globais para o HTML injetado
     window.replyToMessage = replyToId;
     window.scrollToMessage = scrollToMessage;
 
@@ -67,7 +73,7 @@ function init() {
                 if (node.nodeType !== 1) continue;
                 if (!node.className || !node.className.includes('chat-msg-')) continue;
 
-                // 1. Adicionar Botão de Reply (Igual ao anterior)
+                // 1. Inserir Botão de Reply (setinha)
                 if (!node.querySelector('.reply-btn')) {
                     const timestamp = node.querySelector('.timestamp');
                     if (timestamp) {
@@ -80,51 +86,43 @@ function init() {
                         
                         btn.onclick = () => {
                             const id = node.getAttribute('data-msg-id');
-                            if (id) {
-                                replyToId(id);
-                            } else {
-                                // Fallback se o ID ainda não foi gerado
-                                const newId = window.generateMsgId ? 
-                                    window.generateMsgId(
-                                        node.className.split('-')[2], 
-                                        node.innerText, 
-                                        timestamp.innerText
-                                    ) : null;
-                                if (newId) replyToId(newId);
-                            }
+                            if (id) replyToId(id);
+                            // Fallback caso o ID não tenha sido gerado a tempo (raro)
+                            else console.warn("[ChatReply] Aguarde, processando ID...");
                         };
+                        
+                        // Insere logo após o timestamp
                         timestamp.parentNode.insertBefore(btn, timestamp.nextSibling);
                     }
                 }
 
-                // 2. Processar a visualização (.reply ID)
-                const msgBody = node.innerHTML;
+                // 2. Detectar e Formatar o Comando .reply
+                // CORREÇÃO: Pegamos apenas o span da mensagem, não o HTML todo da linha
+                const msgSpan = node.querySelector('span:not(.timestamp):not(.username)');
                 
-                // MUDANÇA AQUI: Regex para capturar .reply <ID>
-                // ^ = inicio, \.reply = literal, \s+ = espaço, (\S+) = ID (sem espaço)
-                const replyRegex = /^\.reply\s+(\S+)/;
-                const match = msgBody.match(replyRegex);
+                if (msgSpan) {
+                    const msgText = msgSpan.innerHTML;
+                    // Regex busca .reply no início do TEXTO da mensagem
+                    const replyRegex = /^\.reply\s+(\S+)/i;
+                    const match = msgText.match(replyRegex);
 
-                if (match) {
-                    const replyId = match[1]; // O ID (ex: 123456)
-                    const fullCmd = match[0]; // O comando todo (ex: ".reply 123456")
-                    
-                    const headerHtml = createReplyHeader(replyId);
+                    if (match) {
+                        const replyId = match[1]; // ID capturado
+                        const fullCmd = match[0]; // O texto ".reply 123456"
+                        
+                        const headerHtml = createReplyHeader(replyId);
 
-                    // Remove o comando ".reply 123456" do texto visível
-                    // O replace remove apenas a primeira ocorrência, o que é correto
-                    node.innerHTML = node.innerHTML.replace(replyRegex, "");
-                    
-                    // Insere a caixinha de preview
-                    const refElement = node.querySelector('.username') || node.querySelector('.timestamp');
-                    if (refElement) {
+                        // Remove o comando feio do texto visível
+                        msgSpan.innerHTML = msgText.replace(fullCmd, "").trim();
+                        
+                        // Cria o elemento visual da resposta
                         const previewDiv = document.createElement("div");
                         previewDiv.innerHTML = headerHtml;
                         
-                        if (refElement.nextSibling) {
-                             node.insertBefore(previewDiv, refElement.nextSibling.nextSibling);
-                        } else {
-                             node.appendChild(previewDiv);
+                        // Insere a caixinha ANTES do texto da mensagem (mas depois do nome)
+                        // Estrutura: [Time] [User] [ReplyBox] [Msg]
+                        if (msgSpan.parentNode) {
+                            msgSpan.parentNode.insertBefore(previewDiv, msgSpan);
                         }
                     }
                 }
