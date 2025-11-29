@@ -19,7 +19,7 @@ function makeChatMultiline() {
 
             oldChatline.replaceWith(newChatline);
 
-            // Auto-resize
+            // Auto-resize: Aumenta a caixa conforme digita
             newChatline.on('input', function() {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
@@ -34,42 +34,32 @@ function makeChatMultiline() {
                     var rawMsg = $(this).val();
                     if (rawMsg.trim() === "") return;
 
-                    // Histórico Local
+                    // Histórico Local (Seta p/ cima)
                     if (!window.CHATHIST) window.CHATHIST = [];
                     window.CHATHIST.push(rawMsg);
                     window.CHATHISTIDX = window.CHATHIST.length;
 
+                    // Limpa a caixa e reseta altura
                     $(this).val("");
                     this.style.height = 'auto';
 
+                    // Divide por quebra de linha e envia sequencialmente
                     var linesToSend = rawMsg.split('\n');
                     
                     function sendNextLine() {
                         var msg = linesToSend.shift();
                         if (typeof msg === 'undefined') return;
                         
+                        // Pula linhas vazias
                         if (msg.trim() === "") {
                             sendNextLine();
                             return;
                         }
 
-                        // --- LÓGICA DO /admn (NOVO) ---
-                        var meta = {};
+                        // Envia para o socket (Puro, sem modificadores de admin)
+                        window.socket.emit("chatMsg", { msg: msg });
                         
-                        if (msg.startsWith("/admn ")) {
-                            // Remove o comando "/admn " do início (6 caracteres)
-                            msg = msg.substring(6); 
-                            
-                            // Adiciona a classe CSS personalizada
-                            meta.addClass = "tchannel-admin-msg";
-                            
-                            // (Opcional) Aplica o estilo também ao nome e hora
-                            meta.addClassToNameAndTimestamp = true; 
-                        }
-                        // ------------------------------
-
-                        window.socket.emit("chatMsg", { msg: msg, meta: meta });
-                        
+                        // Delay anti-flood (150ms entre linhas)
                         if (linesToSend.length > 0) {
                             setTimeout(sendNextLine, 150); 
                         }
@@ -77,7 +67,7 @@ function makeChatMultiline() {
                     
                     sendNextLine();
                 }
-                // [TAB] Autocompletar
+                // [TAB] Autocompletar Nomes
                 else if (ev.keyCode === 9) {
                     try { 
                         if (window.chatTabComplete) window.chatTabComplete(ev.target); 
@@ -85,7 +75,7 @@ function makeChatMultiline() {
                     ev.preventDefault();
                     return false;
                 }
-                // [SETAS] Histórico
+                // [SETA CIMA] Histórico Anterior
                 else if (ev.keyCode === 38 && !ev.shiftKey) {
                     if (window.CHATHIST && window.CHATHISTIDX > 0) {
                         ev.preventDefault();
@@ -93,6 +83,7 @@ function makeChatMultiline() {
                         $(this).val(window.CHATHIST[window.CHATHISTIDX]);
                     }
                 }
+                // [SETA BAIXO] Histórico Próximo
                 else if (ev.keyCode === 40 && !ev.shiftKey) {
                     if (window.CHATHIST && window.CHATHISTIDX < window.CHATHIST.length - 1) {
                         ev.preventDefault();
@@ -105,7 +96,7 @@ function makeChatMultiline() {
                 }
             });
             
-            console.log("[UITweaks] Chat Multilinha + Comando /admn ativados.");
+            console.log("[UITweaks] Chat Multilinha ativado.");
         }
     } catch (e) {
         console.error("[UITweaks] Erro:", e);
