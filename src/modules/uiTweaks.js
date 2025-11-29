@@ -6,7 +6,7 @@ function makeChatMultiline() {
         if (oldChatline.length > 0 && oldChatline[0].tagName !== "TEXTAREA") {
             var newChatline = $("<textarea/>");
             
-            // Copia atributos
+            // Copia atributos essenciais
             newChatline.attr({
                 'id': oldChatline.attr('id'),
                 'class': oldChatline.attr('class'),
@@ -18,27 +18,75 @@ function makeChatMultiline() {
 
             oldChatline.replaceWith(newChatline);
 
-            // Lógica de resize e envio com Enter (simplificada do seu código original)
+            // Auto-resize
             newChatline.on('input', function() {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
             });
 
+            // Lógica de Envio Sequencial
             newChatline.on('keydown', function(ev) {
+                // Enter sem Shift envia
                 if (ev.keyCode === 13 && !ev.shiftKey) {
                     ev.preventDefault();
-                    const msg = $(this).val();
-                    if (msg.trim()) {
-                        // Envia para o socket do CyTube
-                        window.socket.emit("chatMsg", { msg: msg });
-                        // Adiciona ao histórico (opcional, simplificado aqui)
-                    }
+                    
+                    var rawMsg = $(this).val();
+                    if (rawMsg.trim() === "") return;
+
+                    // Histórico de chat (opcional, mas bom ter)
+                    if (!window.CHATHIST) window.CHATHIST = [];
+                    window.CHATHIST.push(rawMsg);
+                    window.CHATHISTIDX = window.CHATHIST.length;
+
                     $(this).val("");
                     this.style.height = 'auto';
+
+                    // CORREÇÃO: Divide por quebra de linha e envia um por um
+                    var linesToSend = rawMsg.split('\n');
+                    
+                    function sendNextLine() {
+                        var msg = linesToSend.shift();
+                        if (typeof msg === 'undefined') return;
+                        
+                        // Pula linhas vazias
+                        if (msg.trim() === "") {
+                            sendNextLine();
+                            return;
+                        }
+
+                        // Envia para o socket
+                        window.socket.emit("chatMsg", { msg: msg });
+                        
+                        // Espera um pouco antes de enviar a próxima para não ser bloqueado por flood
+                        if (linesToSend.length > 0) {
+                            setTimeout(sendNextLine, 150); 
+                        }
+                    }
+                    
+                    sendNextLine();
+                }
+                // Seta para Cima (Histórico)
+                else if (ev.keyCode === 38 && !ev.shiftKey) {
+                    if (window.CHATHIST && window.CHATHISTIDX > 0) {
+                        ev.preventDefault();
+                        window.CHATHISTIDX--;
+                        $(this).val(window.CHATHIST[window.CHATHISTIDX]);
+                    }
+                }
+                // Seta para Baixo (Histórico)
+                else if (ev.keyCode === 40 && !ev.shiftKey) {
+                    if (window.CHATHIST && window.CHATHISTIDX < window.CHATHIST.length - 1) {
+                        ev.preventDefault();
+                        window.CHATHISTIDX++;
+                        $(this).val(window.CHATHIST[window.CHATHISTIDX]);
+                    } else {
+                        window.CHATHISTIDX = window.CHATHIST.length;
+                        $(this).val("");
+                    }
                 }
             });
             
-            console.log("[UITweaks] Chat transformado em Textarea.");
+            console.log("[UITweaks] Chat transformado em Textarea (Modo Sequencial).");
         }
     } catch (e) {
         console.error("[UITweaks] Erro ao modificar chat:", e);
@@ -46,11 +94,9 @@ function makeChatMultiline() {
 }
 
 function init() {
-    // Muda o título
     const brand = document.querySelector('.navbar-brand');
     if (brand) brand.textContent = 'Tchannel';
-
-    // Transforma o chat
     makeChatMultiline();
 }
+
 export default { init };
