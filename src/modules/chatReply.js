@@ -4,50 +4,45 @@ function replyToId(id) {
     const chatline = document.getElementById("chatline");
     if (!chatline) return;
 
-    // Remove tags de reply anteriores para não acumular
-    let currentText = chatline.value.replace(/\[r\].*?\[\/r\]\s*/g, "");
+    // Remove qualquer comando .reply anterior para não acumular
+    // Regex: Começa com .reply, espaços, ID (não-espaço), espaços
+    let currentText = chatline.value.replace(/^\.reply\s+\S+\s*/, "");
     
-    // Adiciona o novo reply no início
-    chatline.value = `[r]${id}[/r] ${currentText}`;
+    // Adiciona o novo formato no início: .reply <ID> <Texto>
+    chatline.value = `.reply ${id} ${currentText}`;
     chatline.focus();
 }
 
 function scrollToMessage(id) {
-    const target = document.querySelector(`[data-msg-id="${id}"]`);
+    let target = document.querySelector(`[data-msg-id="${id}"]`);
+    
     if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
-        // Efeito de flash para destacar
         target.style.transition = "background-color 0.3s";
         const originalBg = target.style.backgroundColor;
-        target.style.backgroundColor = "rgba(255, 255, 0, 0.2)"; // Amarelo suave
+        target.style.backgroundColor = "rgba(255, 255, 0, 0.2)"; 
         setTimeout(() => {
             target.style.backgroundColor = originalBg;
         }, 1000);
     } else {
-        // Fallback visual se a mensagem não estiver mais no buffer
-        console.warn("[ChatReply] Mensagem original não encontrada no buffer.");
+        console.warn("[ChatReply] Mensagem não encontrada no buffer.");
     }
 }
 
 function createReplyHeader(targetId) {
-    // Tenta encontrar a mensagem original no DOM
     const targetMsg = document.querySelector(`[data-msg-id="${targetId}"]`);
     
     let username = "Desconhecido";
     let text = "Mensagem antiga ou apagada";
 
     if (targetMsg) {
-        // Extrai o nome de usuário da classe (chat-msg-Username)
         const classList = targetMsg.className.split(' ');
         const userClass = classList.find(c => c.startsWith('chat-msg-'));
         if (userClass) username = userClass.replace('chat-msg-', '');
 
-        // Pega o texto (ignora timestamp e botões)
-        // Nota: O seletor pode variar levemente dependendo do tema, mas geralmente é o último span
         const textSpan = targetMsg.querySelector('span:not(.timestamp):not(.username)');
         if (textSpan) text = textSpan.innerText;
         
-        // Limita o tamanho do texto no preview
         if (text.length > 50) text = text.substring(0, 50) + "...";
     }
 
@@ -58,9 +53,8 @@ function createReplyHeader(targetId) {
 }
 
 function init() {
-    console.log("[ChatReply] Inicializando sistema de respostas...");
+    console.log("[ChatReply] Inicializando sistema de respostas (.reply)...");
 
-    // Expõe funções globais para os onclicks (HTML) funcionarem
     window.replyToMessage = replyToId;
     window.scrollToMessage = scrollToMessage;
 
@@ -71,57 +65,67 @@ function init() {
         for (const mutation of mutations) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType !== 1) continue;
-                if (!node.classList.contains('chat-msg-')) continue;
+                if (!node.className || !node.className.includes('chat-msg-')) continue;
 
-                // 1. Adicionar Botão de Reply
-                // Verifica se já não tem botão (para evitar duplicidade)
+                // 1. Adicionar Botão de Reply (Igual ao anterior)
                 if (!node.querySelector('.reply-btn')) {
                     const timestamp = node.querySelector('.timestamp');
                     if (timestamp) {
                         const btn = document.createElement('span');
                         btn.className = 'reply-btn pointer';
-                        btn.innerHTML = ' ↩'; // Ícone de reply
+                        btn.innerHTML = ' ↩'; 
                         btn.title = "Responder";
                         btn.style.cursor = "pointer";
                         btn.style.marginLeft = "5px";
+                        
                         btn.onclick = () => {
-                            // Pega o ID gerado pelo módulo chatId.js
                             const id = node.getAttribute('data-msg-id');
-                            if (id) replyToId(id);
-                            else console.warn("[ChatReply] Mensagem sem ID ainda.");
+                            if (id) {
+                                replyToId(id);
+                            } else {
+                                // Fallback se o ID ainda não foi gerado
+                                const newId = window.generateMsgId ? 
+                                    window.generateMsgId(
+                                        node.className.split('-')[2], 
+                                        node.innerText, 
+                                        timestamp.innerText
+                                    ) : null;
+                                if (newId) replyToId(newId);
+                            }
                         };
-                        // Insere logo após o timestamp
                         timestamp.parentNode.insertBefore(btn, timestamp.nextSibling);
                     }
                 }
 
-                // 2. Processar Mensagem se for uma Resposta
+                // 2. Processar a visualização (.reply ID)
                 const msgBody = node.innerHTML;
-                const replyRegex = /\[r\](.*?)\[\/r\]/;
+                
+                // MUDANÇA AQUI: Regex para capturar .reply <ID>
+                // ^ = inicio, \.reply = literal, \s+ = espaço, (\S+) = ID (sem espaço)
+                const replyRegex = /^\.reply\s+(\S+)/;
                 const match = msgBody.match(replyRegex);
 
                 if (match) {
-                    const replyId = match[1];
-                    const fullTag = match[0];
-
-                    // Cria o cabeçalho visual
+                    const replyId = match[1]; // O ID (ex: 123456)
+                    const fullCmd = match[0]; // O comando todo (ex: ".reply 123456")
+                    
                     const headerHtml = createReplyHeader(replyId);
 
-                    // Remove a tag [r]...[/r] do texto visível e insere o cabeçalho antes
-                    // O CyTube geralmente bota o texto num span. Vamos tentar injetar dentro dele ou antes dele.
+                    // Remove o comando ".reply 123456" do texto visível
+                    // O replace remove apenas a primeira ocorrência, o que é correto
+                    node.innerHTML = node.innerHTML.replace(replyRegex, "");
                     
-                    // Estratégia segura: Substituir a tag por string vazia e dar Prepend no header
-                    node.innerHTML = node.innerHTML.replace(fullTag, "");
-                    
-                    // Inserimos o preview logo após o timestamp/botões
+                    // Insere a caixinha de preview
                     const refElement = node.querySelector('.username') || node.querySelector('.timestamp');
                     if (refElement) {
-                        // Cria um elemento container para o preview
                         const previewDiv = document.createElement("div");
                         previewDiv.innerHTML = headerHtml;
-                        // Insere antes da mensagem de texto, mas quebrando linha
-                        // No layout padrão do CyTube, o texto é inline. Vamos forçar um bloco.
-                        node.insertBefore(previewDiv, refElement.nextSibling.nextSibling); 
+                        
+                        if (refElement.nextSibling) {
+                             node.insertBefore(previewDiv, refElement.nextSibling.nextSibling);
+                        } else {
+                             node.appendChild(previewDiv);
+                        }
                     }
                 }
             }
