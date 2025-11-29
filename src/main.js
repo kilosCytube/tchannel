@@ -1,19 +1,21 @@
 // src/main.js
 import DriveSync from "./modules/driveSync.js";
+import DriveMetadata from "./modules/driveMetadata.js"; // <--- Novo
 import ChatCommands from "./modules/chatCommands.js";
-import UITweaks from "./modules/uiTweaks.js";       // <--- Novo
-import ImageUploader from "./modules/imageUploader.js"; // <--- Novo
-import ChatEmbeds from "./modules/chatEmbeds.js";   // <--- Novo
+import UITweaks from "./modules/uiTweaks.js";
+import ImageUploader from "./modules/imageUploader.js";
+import ChatEmbeds from "./modules/chatEmbeds.js";
 
 window.TChannel = {
     init() {
-        console.log("[TChannel] Inicializando sistema modular...");
+        console.log("[TChannel] Inicializando sistema modular completo...");
         
-        UITweaks.init();       // 1. Arruma a interface (textarea)
-        DriveSync.init();      // 2. Sincroniza player
-        ChatCommands.init();   // 3. Comandos de texto (.roll)
-        ImageUploader.init();  // 4. Ctrl+V no chat
-        ChatEmbeds.init();     // 5. Transforma .embed em <img>
+        UITweaks.init();       // Interface, Admin Hats, Textarea
+        DriveMetadata.init();  // API para "tocar" vídeos do Drive
+        DriveSync.init();      // Sincronização de Play/Pause
+        ChatCommands.init();   // Comandos (.roll, .clear)
+        ImageUploader.init();  // Upload Ctrl+V
+        ChatEmbeds.init();     // Visualização de Imagens
     }
 };
 
