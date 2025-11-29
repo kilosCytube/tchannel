@@ -1,29 +1,10 @@
 // src/modules/chatReply.js
 
-// Injeta o CSS automaticamente se não estiver presente
-const styles = `
-.reply-btn { cursor: pointer; margin-left: 6px; font-size: 0.9em; color: #888; transition: color 0.2s; }
-.reply-btn:hover { color: #ffcc00; }
-.reply-box { position: relative; background-color: rgba(60, 60, 60, 0.4); border-left: 4px solid #627b83; border-radius: 6px; padding: 4px 8px; margin: 4px 0 6px 0; font-size: 0.85em; cursor: pointer; width: fit-content; max-width: 95%; overflow: hidden; display: flex; flex-direction: column; transition: background-color 0.2s; }
-.reply-box:hover { background-color: rgba(80, 80, 80, 0.5); border-left-color: #8aaeb8; }
-.reply-header { font-weight: bold; color: #aaa; font-size: 0.9em; margin-bottom: 2px; }
-.reply-msg { color: #ddd; font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-`;
-
-function injectStyles() {
-    if (!document.getElementById('chat-reply-css')) {
-        const styleSheet = document.createElement("style");
-        styleSheet.id = 'chat-reply-css';
-        styleSheet.innerText = styles;
-        document.head.appendChild(styleSheet);
-    }
-}
-
 function replyToId(id) {
     const chatline = document.getElementById("chatline");
     if (!chatline) return;
     
-    // Substitui reply anterior
+    // Substitui reply anterior se houver
     let currentText = chatline.value.replace(/^\.reply\s+\S+\s*/, "");
     chatline.value = `.reply ${id} ${currentText}`;
     chatline.focus();
@@ -34,15 +15,12 @@ function scrollToMessage(id) {
     if (target) {
         target.scrollIntoView({ behavior: "smooth", block: "center" });
         
-        // Remove animação anterior se houver para reiniciar
+        // Remove animação anterior para poder tocar de novo
         target.classList.remove("highlight-anim");
-        void target.offsetWidth; // Força reflow
+        void target.offsetWidth; // Hack para forçar o navegador a reiniciar a animação
         
-        // Adiciona classe de animação (definida no CSS ou manual aqui)
-        target.style.transition = "background-color 0.5s";
-        const originalBg = target.style.backgroundColor;
-        target.style.backgroundColor = "rgba(255, 255, 0, 0.15)";
-        setTimeout(() => { target.style.backgroundColor = originalBg; }, 1500);
+        // Adiciona a classe que faz o flash (definida no CSS da sala)
+        target.classList.add("highlight-anim");
     } else {
         console.warn("[ChatReply] Mensagem original não encontrada.");
     }
@@ -54,19 +32,17 @@ function createReplyHeader(targetId) {
     let text = "Mensagem antiga ou apagada";
 
     if (targetMsg) {
-        // Lógica robusta para pegar nome (inspirada no Bokitube)
+        // Tenta pegar o nome de forma limpa
         const userSpan = targetMsg.querySelector('.username');
-        if (userSpan) username = userSpan.innerText.replace(/:$/, ''); // Remove dois pontos do final se tiver
+        if (userSpan) username = userSpan.innerText.replace(/:$/, ''); 
         else {
             const classList = targetMsg.className.split(' ');
             const userClass = classList.find(c => c.startsWith('chat-msg-'));
             if (userClass) username = userClass.replace('chat-msg-', '');
         }
 
-        // Pega texto limpando lixo HTML
-        // Clona o nodo para não estragar o original ao manipular
+        // Clona para limpar elementos indesejados (botões, hora) e pegar só o texto
         const clone = targetMsg.cloneNode(true);
-        // Remove elementos de "metadados" para sobrar só o texto
         const toRemove = clone.querySelectorAll('.timestamp, .username, .reply-btn, .reply-box');
         toRemove.forEach(el => el.remove());
         
@@ -74,7 +50,7 @@ function createReplyHeader(targetId) {
         if (text.length > 60) text = text.substring(0, 60) + "...";
     }
 
-    // Estrutura HTML "Bokitube Style"
+    // HTML Limpo (As classes são estilizadas no CSS da sala)
     return `<div class="reply-box" onclick="window.scrollToMessage('${targetId}')">
                 <span class="reply-header">↪ Respondendo a ${username}:</span> 
                 <span class="reply-msg">${text}</span>
@@ -82,9 +58,9 @@ function createReplyHeader(targetId) {
 }
 
 function init() {
-    console.log("[ChatReply] Inicializando estilo Bokitube...");
-    injectStyles();
+    console.log("[ChatReply] Módulo iniciado (Estilo via CSS externo)...");
 
+    // Expõe funções para o HTML onclick
     window.replyToMessage = replyToId;
     window.scrollToMessage = scrollToMessage;
 
@@ -107,9 +83,9 @@ function init() {
                         btn.title = "Responder";
                         btn.onclick = () => {
                             const id = node.getAttribute('data-msg-id');
+                            // Tenta pelo atributo, ou gera na hora (fallback)
                             if (id) replyToId(id);
                             else if (window.generateMsgId) {
-                                // Fallback gerando ID na hora
                                 const newId = window.generateMsgId(
                                     node.className.split('-')[2], 
                                     node.innerText, 
@@ -131,7 +107,7 @@ function init() {
                     if (span.classList.contains('timestamp') || span.classList.contains('username')) continue;
 
                     const text = span.innerHTML;
-                    // Regex busca .reply no início, ignorando tags HTML anteriores se houver
+                    // Regex busca .reply ID no início do texto
                     const match = text.match(/^\s*\.reply\s+(\d+)/i);
 
                     if (match) {
@@ -143,14 +119,10 @@ function init() {
                         const previewDiv = document.createElement("div");
                         previewDiv.innerHTML = headerHtml;
 
-                        // Remove o comando do texto
+                        // Limpa o comando ".reply ID" do texto visível
                         span.innerHTML = text.replace(fullMatch, "").trim();
 
-                        // INSERÇÃO CORRIGIDA:
-                        // O Bokitube insere um DIV block.
-                        // Para não quebrar a linha do nome, inserimos ANTES do span de texto,
-                        // mas como é um DIV, ele naturalmente vai para uma "linha própria" visualmente
-                        // empurrando o texto para baixo, o que cria o efeito "Cartão".
+                        // Insere a caixa antes do texto
                         span.parentNode.insertBefore(previewDiv, span);
                     }
                 }
