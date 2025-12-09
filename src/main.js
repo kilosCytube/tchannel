@@ -14,8 +14,8 @@ window.TChannel = {
         
         // Ordem sugerida para evitar conflitos de DOM:
         UITweaks.init();       
-        DriveMetadata.init();  
-        DriveSync.init();      
+        //DriveMetadata.init();  
+        //DriveSync.init();      
         ChatCommands.init();   
         ImageUploader.init();  
         ChatId.init();         // Gera IDs (Importante vir antes do Reply)
@@ -27,3 +27,4 @@ window.TChannel = {
 $(document).ready(() => {
     window.TChannel.init();
 });
+
