@@ -27,41 +27,44 @@ function makeChatMultiline() {
 
             // --- Handler de Teclas ---
             newChatline.on('keydown', function(ev) {
-                // [ENTER] Enviar Mensagem
+            // [ENTER] Enviar Mensagem
                 if (ev.keyCode === 13 && !ev.shiftKey) {
                     ev.preventDefault();
                     
                     var rawMsg = $(this).val();
                     if (rawMsg.trim() === "") return;
 
-                    // Histórico Local (Seta p/ cima)
+                    // Histórico Local
                     if (!window.CHATHIST) window.CHATHIST = [];
                     window.CHATHIST.push(rawMsg);
                     window.CHATHISTIDX = window.CHATHIST.length;
 
-                    // Limpa a caixa e reseta altura
                     $(this).val("");
                     this.style.height = 'auto';
 
-                    // Divide por quebra de linha e envia sequencialmente
+                    // --- PROTEÇÃO DE COMANDOS ---
+                    // Se começar com / (ex: /afk, /clear), envia direto sem quebrar linhas
+                    if (rawMsg.trim().startsWith("/")) {
+                        window.socket.emit("chatMsg", { msg: rawMsg.trim() });
+                        return;
+                    }
+
+                    // Divide por quebra de linha e envia sequencialmente (Lógica original mantida)
                     var linesToSend = rawMsg.split('\n');
                     
                     function sendNextLine() {
                         var msg = linesToSend.shift();
                         if (typeof msg === 'undefined') return;
                         
-                        // Pula linhas vazias
                         if (msg.trim() === "") {
                             sendNextLine();
                             return;
                         }
 
-                        // Envia para o socket (Puro, sem modificadores de admin)
                         window.socket.emit("chatMsg", { msg: msg });
                         
-                        // Delay anti-flood (150ms entre linhas)
                         if (linesToSend.length > 0) {
-                            setTimeout(sendNextLine, 150); 
+                            setTimeout(sendNextLine, 150); // Seu delay de 150ms mantido
                         }
                     }
                     
