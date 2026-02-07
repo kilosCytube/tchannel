@@ -1,37 +1,51 @@
 // src/modules/imageUploader.js
 
-const CORS_PROXY = "https://corsproxy.io/?";
+// Lista de proxies em ordem de prioridade (igual ao driveMetadata)
+const PROXY_LIST = [
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?url=',
+    'https://thingproxy.freeboard.io/fetch/'
+];
 const CATBOX_API = "https://catbox.moe/user/api.php";
 
 async function uploadToCatbox(file) {
     const formData = new FormData();
     formData.append("reqtype", "fileupload");
-    formData.append("userhash", ""); // Opcional: Se quiser usar conta do Catbox
+    formData.append("userhash", ""); 
     formData.append("fileToUpload", file);
 
-    try {
-        const response = await fetch(CORS_PROXY + CATBOX_API, {
-            method: "POST",
-            body: formData
-        });
+    // Tenta proxies sequencialmente
+    for (let i = 0; i < PROXY_LIST.length; i++) {
+        const proxy = PROXY_LIST[i];
+        const url = proxy + encodeURIComponent(CATBOX_API);
+        
+        console.log(`[ImageUploader] Tentando upload via Proxy ${i+1}...`);
 
-        if (!response.ok) throw new Error(`Erro HTTP: ${response.status}`);
-        
-        const url = await response.text();
-        if (!url.startsWith("http")) throw new Error("Resposta inválida do Catbox");
-        
-        return url.trim();
-    } catch (err) {
-        console.error("[ImageUploader] Falha no upload:", err);
-        throw err;
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                body: formData
+            });
+
+            if (response.ok) {
+                const text = await response.text();
+                if (text.startsWith("http")) {
+                    console.log(`[ImageUploader] Sucesso no Proxy ${i+1}`);
+                    return text.trim();
+                }
+            }
+        } catch (err) {
+            console.warn(`[ImageUploader] Falha no Proxy ${i+1}:`, err);
+        }
     }
+    
+    throw new Error("Falha no upload em todos os proxies.");
 }
 
 function handlePaste(e) {
     const items = (e.clipboardData || e.originalEvent.clipboardData).items;
     let file = null;
 
-    // Procura por arquivo de imagem no clipboard
     for (let item of items) {
         if (item.kind === "file" && item.type.startsWith("image/")) {
             file = item.getAsFile();
@@ -39,32 +53,27 @@ function handlePaste(e) {
         }
     }
 
-    if (!file) return; // Se não for imagem, deixa o comportamento padrão (colar texto)
+    if (!file) return; 
 
-    e.preventDefault(); // Impede de colar o binário estranho no chat
+    e.preventDefault(); 
     
     const chatInput = e.target;
     const originalText = chatInput.value;
     
-    // Feedback visual
     chatInput.value = `[⏳ Uploading ${file.name}...]`;
     chatInput.disabled = true;
     chatInput.style.cursor = "wait";
 
     uploadToCatbox(file)
         .then(url => {
-            // Sucesso: Substitui pelo comando .embed
-            // Se já tinha texto antes, mantém e adiciona o embed no final
             const prefix = originalText ? originalText + " " : "";
             chatInput.value = `${prefix}.embed ${url}`;
         })
         .catch(err => {
-            // Erro: Restaura o texto original e avisa
             chatInput.value = originalText;
             alert(`Falha no upload: ${err.message}`);
         })
         .finally(() => {
-            // Restaura a interface
             chatInput.disabled = false;
             chatInput.style.cursor = "text";
             chatInput.focus();
@@ -72,18 +81,12 @@ function handlePaste(e) {
 }
 
 function init() {
-    console.log("[ImageUploader] Inicializando...");
-    
-    // Tenta encontrar o chatline. Como o outro script pode transformar em textarea,
-    // usamos um setInterval curto para garantir que pegamos o elemento final.
+    console.log("[ImageUploader] Inicializando com Multi-Proxy...");
     const interval = setInterval(() => {
         const chatLine = document.getElementById("chatline");
         if (chatLine) {
-            // Remove listeners antigos para evitar duplicidade (se houver reload)
             chatLine.removeEventListener("paste", handlePaste);
             chatLine.addEventListener("paste", handlePaste);
-            
-            console.log("[ImageUploader] Listener anexado ao #chatline");
             clearInterval(interval);
         }
     }, 1000);
