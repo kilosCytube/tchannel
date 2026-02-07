@@ -12,11 +12,11 @@ window.TChannel = {
     init() {
         console.log("[TChannel] Inicializando sistema modular completo...");
         
-        // Ordem sugerida para evitar conflitos de DOM:
+        // Ordem sugerida para evitar conflitos de DOM:     
         UITweaks.init();       
         DriveMetadata.init();  
-        DriveSync.init();      
-        ChatCommands.init();   
+        // DriveSync.init(); // Desativado: Iframe não aceita conexões externas
+        ChatCommands.init();
         ImageUploader.init();  
         ChatId.init();         // Gera IDs (Importante vir antes do Reply)
         ChatReply.init();      // Usa os IDs para criar botões
@@ -27,5 +27,3 @@ window.TChannel = {
 $(document).ready(() => {
     window.TChannel.init();
 });
-
-
