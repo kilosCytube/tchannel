@@ -14,7 +14,7 @@ window.TChannel = {
         
         // Ordem sugerida para evitar conflitos de DOM:     
         UITweaks.init();       
-        DriveMetadata.init();  
+        //DriveMetadata.init();  
         // DriveSync.init(); // Desativado: Iframe não aceita conexões externas
         ChatCommands.init();
         ImageUploader.init();  
@@ -27,3 +27,4 @@ window.TChannel = {
 $(document).ready(() => {
     window.TChannel.init();
 });
+
